@@ -1,0 +1,272 @@
+DATA DICTIONARY – PARTE 1
+(Tablas y Vistas)
+
+Formato:
+
+Componente
+Tipo
+Capa
+Objetivo
+Grano (Granularity)
+Claves principales
+Notas técnicas
+ 1. CORE / CONTROL
+rw_cycle
+Tipo: Tabla
+Capa: Control
+Objetivo: Definir los ciclos de procesamiento (mensuales) del modelo
+Grano: 1 registro por ciclo
+Claves principales:
+cycle_id (PK)
+Notas:
+Base de particionamiento lógico de todo el modelo
+No se permite overwrite
+rw_run
+Tipo: Tabla
+Capa: Control
+Objetivo: Registrar cada ejecución del motor de segmentación
+Grano: 1 registro por corrida
+Claves principales:
+run_id (PK)
+cycle_id (FK)
+Notas:
+Soporta múltiples corridas por ciclo
+Solo una puede estar is_published = 1
+rw_parameter_version
+Tipo: Tabla
+Capa: Config
+Objetivo: Versionar la configuración completa del modelo
+Grano: 1 registro por versión integral
+Claves principales:
+parameter_version_id (PK)
+Notas:
+Cada corrida apunta a una versión única
+Permite reproducibilidad total
+rw_parameter_value
+Tipo: Tabla
+Capa: Config
+Objetivo: Almacenar parámetros simples (clave-valor tipado)
+Grano: 1 registro por parámetro por versión
+Claves principales:
+parameter_value_id (PK)
+parameter_version_id (FK)
+Notas:
+Soporta NUMBER / STRING / DATE
+Indexado por param_code
+rw_parameter_list
+Tipo: Tabla
+Capa: Config
+Objetivo: Almacenar listas de valores (ej: tipos de case válidos)
+Grano: 1 valor por lista por versión
+Claves principales:
+parameter_list_id (PK)
+Notas:
+Complementa modelo KV
+rw_product_score
+Tipo: Tabla
+Capa: Config
+Objetivo: Definir el score de productos por versión
+Grano: 1 registro por producto por versión
+Claves principales:
+product_score_id (PK)
+Notas:
+Copia completa por versión (no referencia externa)
+rw_cat_product_status
+Tipo: Tabla (catálogo)
+Capa: Config
+Objetivo: Estandarizar estatus de producto y su prioridad
+Grano: 1 registro por status_code
+Claves principales:
+status_code (PK)
+Notas:
+Define elegibilidad para el modelo
+Define prioridad para resolución de dominio
+rw_batch
+Tipo: Tabla
+Capa: Control
+Objetivo: Agrupar ejecuciones de carga en un proceso batch
+Grano: 1 registro por batch
+Claves principales:
+batch_id (PK)
+rw_source_load
+Tipo: Tabla
+Capa: Control
+Objetivo: Registrar cargas por fuente de datos
+Grano: 1 registro por fuente por ejecución
+Claves principales:
+source_load_id (PK)
+Notas:
+Permite reintentos independientes por fuente
+ 2. LANDING
+rw_lnd_site_metric
+Tipo: Tabla
+Capa: Landing
+Objetivo: Almacenar métricas crudas de sitios desde SQL Server
+Grano: 1 registro por sitio + periodo + carga
+Claves principales:
+lnd_site_metric_id (PK)
+Notas:
+Contiene parsing de advertiser_id-business_id
+Guarda domain_raw y domain_normalized
+Punto de entrada único de métricas externas
+ 3. INTEGRATION
+rw_int_advertiser
+Tipo: Tabla
+Capa: Integration
+Objetivo: Snapshot consolidado por advertiser para el ciclo
+Grano: 1 registro por advertiser por ciclo
+Claves principales:
+int_advertiser_id (PK)
+(cycle_id, advertiser_id) UNIQUE
+Notas:
+Incluye flags de:
+universo
+calidad
+riesgo indeterminado
+Base para el motor
+rw_int_product
+Tipo: Tabla
+Capa: Integration
+Objetivo: Productos relevantes del advertiser en el ciclo
+Grano: 1 producto por ciclo
+Claves principales:
+int_product_id (PK)
+(cycle_id, bc_product_id) UNIQUE
+Notas:
+Solo estatus relevantes (L, I, D, S)
+Incluye dominio y atributos comerciales
+rw_int_domain_candidate
+Tipo: Tabla
+Capa: Integration
+Objetivo: Relación dominio ↔ advertiser antes de resolver conflictos
+Grano: 1 registro por dominio + advertiser + producto
+Claves principales:
+int_domain_candidate_id (PK)
+Notas:
+Base para algoritmo de dominio ganador
+rw_int_domain_resolution
+Tipo: Tabla
+Capa: Integration
+Objetivo: Resultado de resolución de dominio por ciclo
+Grano: 1 registro por dominio por ciclo
+Claves principales:
+int_domain_resolution_id (PK)
+(cycle_id, domain_normalized) UNIQUE
+Notas:
+Define:
+advertiser ganador
+excepciones (empates)
+Crítica para trazabilidad
+rw_int_site_metric
+Tipo: Tabla
+Capa: Integration
+Objetivo: Métricas de sitio ya homologadas y resueltas
+Grano: 1 dominio por ciclo
+Claves principales:
+int_site_metric_id (PK)
+Notas:
+Incluye:
+advertiser resuelto
+exclusión por excepción
+flags de antigüedad
+rw_int_case
+Tipo: Tabla
+Capa: Integration
+Objetivo: Cases relevantes para reglas del modelo
+Grano: 1 case por ciclo
+Claves principales:
+int_case_id (PK)
+(cycle_id, case_id) UNIQUE
+Notas:
+Ventana de 120 días
+Flags:
+CQ
+TA
+CS
+ 4. QUALITY
+rw_quality_event
+Tipo: Tabla
+Capa: Quality
+Objetivo: Registrar eventos agregados de calidad de datos
+Grano: 1 evento por regla/fuente/ciclo
+Claves principales:
+quality_event_id (PK)
+Notas:
+No es nivel fila
+Incluye severidad y métricas
+rw_quality_event_sample
+Tipo: Tabla
+Capa: Quality
+Objetivo: Muestra representativa de registros con errores
+Grano: 1 muestra por evento
+Claves principales:
+quality_event_sample_id (PK)
+Notas:
+Útil para debugging sin alto volumen
+ 5. SERVING (RESULTADOS)
+rw_run_result
+Tipo: Tabla
+Capa: Serving
+Objetivo: Resultado final del motor por advertiser
+Grano: 1 advertiser por corrida
+Claves principales:
+run_result_id (PK)
+(run_id, advertiser_id) UNIQUE
+Notas:
+Contiene:
+score
+etiqueta
+nivel de riesgo
+acción
+Incluye “riesgo indeterminado” como resultado formal
+rw_run_result_product
+Tipo: Tabla
+Capa: Serving
+Objetivo: Detalle del score por producto
+Grano: 1 producto por advertiser por corrida
+Claves principales:
+run_result_product_id (PK)
+Notas:
+Permite explicar el score
+rw_run_result_rule
+Tipo: Tabla
+Capa: Serving
+Objetivo: Evidencia de evaluación de reglas
+Grano: 1 regla evaluada por advertiser
+Claves principales:
+run_result_rule_id (PK)
+Notas:
+Clave para auditoría del modelo
+rw_run_summary
+Tipo: Tabla
+Capa: Serving
+Objetivo: Agregados de la corrida
+Grano: 1 registro por corrida
+Claves principales:
+run_summary_id (PK)
+(run_id) UNIQUE
+Notas:
+Optimiza consumo API/UI
+ 6. VISTAS DE CONSUMO
+vw_retention_current_result
+Tipo: Vista
+Capa: Serving
+Objetivo: Exponer resultado vigente del ciclo
+Grano: 1 advertiser
+Notas:
+Filtra is_published = 1
+Base para API/UI
+vw_retention_current_summary
+Tipo: Vista
+Capa: Serving
+Objetivo: Exponer resumen de corrida publicada
+Grano: 1 corrida
+Notas:
+Evita agregaciones en tiempo real
+vw_retention_export_base
+Tipo: Vista
+Capa: Serving
+Objetivo: Base para exportaciones operativas
+Grano: 1 advertiser
+Notas:
+Incluye razones de exclusión e indeterminación

@@ -1,0 +1,410 @@
+---
+
+DATA DICTIONARY – PARTE 2
+(Objetos técnicos, reglas e infraestructura del modelo físico)
+
+---
+
+1. SECUENCIAS
+
+Nombre: seq_cycle
+Tipo: Secuencia
+Objetivo: Generar identificadores únicos para la tabla rw_cycle
+Uso: PK surrogate para ciclos
+Notas: Incremental simple, sin reutilización
+
+---
+
+Nombre: seq_run
+Tipo: Secuencia
+Objetivo: Generar identificadores únicos para la tabla rw_run
+Uso: PK surrogate para corridas del motor
+Notas: Cada ejecución del motor debe consumir un valor
+
+---
+
+Nombre: seq_parameter_version
+Tipo: Secuencia
+Objetivo: Generar identificadores para versiones de parámetros
+Uso: PK de configuración versionada
+Notas: Clave para trazabilidad de configuración
+
+---
+
+Nombre: seq_batch
+Tipo: Secuencia
+Objetivo: Identificar procesos batch de carga
+Uso: PK en rw_batch
+Notas: Permite agrupar cargas de distintas fuentes
+
+---
+
+Nombre: seq_source_load
+Tipo: Secuencia
+Objetivo: Identificar cargas por fuente
+Uso: PK en rw_source_load
+Notas: Unidad mínima de trazabilidad de ingestión
+
+---
+
+Nombre: seq_lnd_site_metric
+Tipo: Secuencia
+Objetivo: Identificador de registros de landing de visitas
+Uso: PK en rw_lnd_site_metric
+Notas: Alta volumetría
+
+---
+
+Nombre: seq_int_advertiser
+Tipo: Secuencia
+Objetivo: Identificador de snapshot de advertiser
+Uso: PK en rw_int_advertiser
+
+---
+
+Nombre: seq_int_product
+Tipo: Secuencia
+Objetivo: Identificador de producto en Integration
+Uso: PK en rw_int_product
+
+---
+
+Nombre: seq_int_domain_candidate
+Tipo: Secuencia
+Objetivo: Identificador de candidatos de dominio
+Uso: PK en rw_int_domain_candidate
+
+---
+
+Nombre: seq_int_domain_resolution
+Tipo: Secuencia
+Objetivo: Identificador de resolución de dominio
+Uso: PK en rw_int_domain_resolution
+
+---
+
+Nombre: seq_int_site_metric
+Tipo: Secuencia
+Objetivo: Identificador de métricas integradas por dominio
+Uso: PK en rw_int_site_metric
+
+---
+
+Nombre: seq_int_case
+Tipo: Secuencia
+Objetivo: Identificador de cases en Integration
+Uso: PK en rw_int_case
+
+---
+
+Nombre: seq_quality_event
+Tipo: Secuencia
+Objetivo: Identificador de eventos de calidad
+Uso: PK en rw_quality_event
+
+---
+
+Nombre: seq_quality_event_sample
+Tipo: Secuencia
+Objetivo: Identificador de muestras de calidad
+Uso: PK en rw_quality_event_sample
+
+---
+
+Nombre: seq_run_result
+Tipo: Secuencia
+Objetivo: Identificador de resultados del motor
+Uso: PK en rw_run_result
+
+---
+
+Nombre: seq_run_result_product
+Tipo: Secuencia
+Objetivo: Identificador de detalle de productos en resultado
+Uso: PK en rw_run_result_product
+
+---
+
+Nombre: seq_run_result_rule
+Tipo: Secuencia
+Objetivo: Identificador de reglas evaluadas
+Uso: PK en rw_run_result_rule
+
+---
+
+Nombre: seq_run_summary
+Tipo: Secuencia
+Objetivo: Identificador de resumen de corrida
+Uso: PK en rw_run_summary
+
+---
+
+2. ÍNDICES (PRINCIPALES)
+
+Nombre: idx_rw_cycle_ym
+Tipo: Índice único
+Objetivo: Evitar duplicidad de ciclo por año/mes
+Columnas: cycle_year, cycle_month
+
+---
+
+Nombre: uq_run_one_published_per_cycle
+Tipo: Índice único funcional
+Objetivo: Garantizar una sola corrida publicada por ciclo
+Expresión: CASE WHEN is_published = 1 THEN cycle_id END
+Notas: Implementación clave en Oracle 11g para constraint lógica
+
+---
+
+Nombre: idx_param_code_version
+Tipo: Índice compuesto
+Objetivo: Optimizar lookup de parámetros
+Columnas: param_code, parameter_version_id
+Notas: Crítico para performance del motor
+
+---
+
+Nombre: idx_int_advertiser_cycle
+Tipo: Índice
+Objetivo: Acceso rápido por ciclo
+Columnas: cycle_id
+
+---
+
+Nombre: idx_int_product_cycle_adv
+Tipo: Índice compuesto
+Objetivo: Acceso por advertiser en productos
+Columnas: cycle_id, advertiser_id
+
+---
+
+Nombre: idx_int_domain_candidate_cycle_domain
+Tipo: Índice compuesto
+Objetivo: Resolver dominios eficientemente
+Columnas: cycle_id, domain_normalized
+
+---
+
+Nombre: idx_int_domain_resolution_cycle_domain
+Tipo: Índice único
+Objetivo: Unicidad de dominio por ciclo
+Columnas: cycle_id, domain_normalized
+
+---
+
+Nombre: idx_int_site_metric_cycle_adv
+Tipo: Índice compuesto
+Objetivo: Agregación de métricas por advertiser
+Columnas: cycle_id, advertiser_id_resolved
+
+---
+
+Nombre: idx_int_case_cycle_adv
+Tipo: Índice compuesto
+Objetivo: Evaluación de reglas por advertiser
+Columnas: cycle_id, advertiser_id
+
+---
+
+Nombre: idx_run_result_run
+Tipo: Índice
+Objetivo: Acceso por corrida
+Columnas: run_id
+
+---
+
+Nombre: idx_run_result_label
+Tipo: Índice compuesto
+Objetivo: Filtrado por etiqueta
+Columnas: run_id, assigned_label_code
+
+---
+
+Nombre: idx_run_result_rule_group
+Tipo: Índice compuesto
+Objetivo: Auditoría de reglas
+Columnas: rule_group_code, rule_code
+
+---
+
+3. CONSTRAINTS CLAVE (MÁS ALLÁ DE PK/FK)
+
+Tipo: Unique Constraint
+Nombre: uq_int_advertiser_cycle_adv
+Objetivo: Garantizar un solo advertiser por ciclo en Integration
+Columnas: cycle_id, advertiser_id
+
+---
+
+Tipo: Unique Constraint
+Nombre: uq_int_product_cycle_bcprod
+Objetivo: Evitar duplicidad de producto por ciclo
+Columnas: cycle_id, bc_product_id
+
+---
+
+Tipo: Unique Constraint
+Nombre: uq_int_case_cycle_case
+Objetivo: Evitar duplicidad de case
+Columnas: cycle_id, case_id
+
+---
+
+Tipo: Unique Constraint
+Nombre: uq_run_result_run_adv
+Objetivo: Un solo resultado por advertiser por corrida
+Columnas: run_id, advertiser_id
+
+---
+
+Tipo: Check Constraint
+Objetivo: Validación de flags binarios
+Columnas: múltiples (`0/1`)
+Notas: Asegura consistencia lógica
+
+---
+
+Tipo: Foreign Key Constraint
+Objetivo: Integridad referencial completa
+Notas:
+
+* Todas las tablas de Integration dependen de cycle_id
+* Todas las tablas de Serving dependen de run_id
+
+---
+
+4. REGLAS TÉCNICAS IMPLÍCITAS DEL MODELO
+
+Regla: Inmutabilidad por ciclo
+Descripción:
+Una vez generado el snapshot de Integration para un ciclo, no se modifica
+Impacto:
+Permite reproducibilidad total
+
+---
+
+Regla: Separación Integration vs Serving
+Descripción:
+Integration representa datos base
+Serving representa interpretación del modelo
+Impacto:
+Permite múltiples corridas sobre misma base
+
+---
+
+Regla: Resolución de dominio
+Descripción:
+Un dominio puede tener múltiples advertisers
+Se resuelve usando:
+
+1. prioridad de product_status
+2. fecha de contratación
+3. si empate → excepción
+   Impacto:
+   Evita duplicación de métricas
+
+---
+
+Regla: Exclusión por excepción de dominio
+Descripción:
+Si dominio no se puede resolver → no se usa en métricas
+Impacto:
+Protege cálculos de FL
+
+---
+
+Regla: Riesgo indeterminado
+Descripción:
+Es una etiqueta formal del modelo
+Sustituye cualquier otra clasificación
+Impacto:
+Simplifica consumo en API/UI
+
+---
+
+Regla: Ventana de cases
+Descripción:
+Se persisten 120 días
+El motor decide qué usar
+Impacto:
+Flexibilidad analítica
+
+---
+
+Regla: Producto relevante
+Descripción:
+Solo se consideran estatus L, I, D, S
+Impacto:
+Reduce volumen y ruido
+
+---
+
+Regla: Dominio como llave de trazabilidad
+Descripción:
+Se usa domain_normalized
+No bc_product_id
+Impacto:
+Soporta cambios de negocio
+
+---
+
+Regla: Parsing de advertiser-business
+Descripción:
+Campo compuesto se separa en:
+
+* advertiser_id
+* business_id
+  Impacto:
+  Evita dependencia de formato fuente
+
+---
+
+5. PATRONES DE EJECUCIÓN
+
+Patrón: Carga por fuente
+Descripción:
+Cada fuente genera un source_load_id independiente
+
+---
+
+Patrón: Batch maestro
+Descripción:
+Agrupa múltiples cargas
+
+---
+
+Patrón: Snapshot Integration
+Descripción:
+Se genera una vez por ciclo
+
+---
+
+Patrón: Corrida del motor
+Descripción:
+Lee Integration + Parameter Version
+Genera Serving
+
+---
+
+Patrón: Publicación
+Descripción:
+Una corrida por ciclo se marca como vigente
+
+---
+
+Patrón: Consumo
+Descripción:
+API/UI consume vistas filtradas por is_published
+
+---
+
+6. CONSIDERACIONES DE PERFORMANCE
+
+* Uso intensivo de índices por cycle_id
+* Evitar joins a DB links en runtime del motor
+* Integration actúa como cache persistente
+* Parámetros deben cachearse en PL/SQL
+* Evitar conversiones de tipos NUMBER/VARCHAR
+* Tablas de detalle diseñadas para inserts masivos
+
+---
