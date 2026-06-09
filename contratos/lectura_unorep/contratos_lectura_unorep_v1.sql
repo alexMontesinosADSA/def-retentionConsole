@@ -39,6 +39,7 @@
      B.12  vw_ret_quality_events          Eventos de calidad de datos
      B.13  vw_ret_quality_samples         Muestras de eventos de calidad
      B.14  vw_ret_export_published        Exportación desde corrida publicada
+     B.15  vw_ret_label_catalog           Catálogo de etiquetas (decode de segmentos)
    SECCIÓN C  Índices de soporte adicionales
    SECCIÓN D  Grants al usuario técnico
    SECCIÓN E  Mapa de contratos por endpoint de la API
@@ -110,7 +111,7 @@
    Orden suger. : score_total DESC, advertiser_name ASC (configurable en API)
    Roles        : Analista de Retención, PO / Mercadotecnia
 
-   Tablas base  : rw_run_result, rw_run, rw_cycle
+   Tablas base  : rw_run_result, rw_run, rw_cycle, rw_cat_ret_label
    ----------------------------------------------------------------------------- */
 CREATE OR REPLACE VIEW report_work.vw_ret_list_operativa AS
 SELECT
@@ -129,7 +130,9 @@ SELECT
     /* — Resultado del motor — */
     rr.score_total,
     rr.contract_amount_total,
-    rr.assigned_label_code,          -- VP / CQ / SP / FL / TA / CS / RB
+    rr.assigned_label_code,          -- Código interno: VP / CQ / SP / FL / TA / CS_MEDIO / CS_BAJO / RB
+    lc.label_name,                   -- Nombre de negocio: "Quejas Explícitas", "Alto Valor (VIP)", etc.
+    lc.label_short_desc,             -- Descripción breve del criterio de asignación
     rr.assigned_risk_level_code,     -- REVISION / ALTO / MEDIO / BAJO
     rr.assigned_action_code,         -- MANUAL_VENTAS / CAC / SEND_CAMPAIGN / NO_ACTION
 
@@ -147,16 +150,17 @@ SELECT
     rr.parameter_version_id,
     r.published_at
 
-FROM      report_work.rw_run_result rr
-JOIN      report_work.rw_run        r  ON r.run_id   = rr.run_id
-JOIN      report_work.rw_cycle      c  ON c.cycle_id = rr.cycle_id
+FROM      report_work.rw_run_result   rr
+JOIN      report_work.rw_run          r   ON r.run_id       = rr.run_id
+JOIN      report_work.rw_cycle        c   ON c.cycle_id     = rr.cycle_id
+LEFT JOIN report_work.rw_cat_ret_label lc ON lc.label_code  = rr.assigned_label_code
 WHERE     r.is_published        = 1
   AND     rr.universe_eligible  = 1
   AND     rr.out_of_universe    = 0
   AND     rr.risk_indeterminate = 0;
 
 COMMENT ON TABLE report_work.vw_ret_list_operativa IS
-    'Lista operativa del ciclo vigente. Solo universe_eligible=1, out_of_universe=0, risk_indeterminate=0 de la corrida publicada. Fuente del tablero principal del Dashboard. Indeterminados y fuera de universo tienen vistas propias.';
+    'Lista operativa del ciclo vigente. Solo universe_eligible=1, out_of_universe=0, risk_indeterminate=0 de la corrida publicada. Incluye label_name y label_short_desc desde rw_cat_ret_label para presentacion directa en el Dashboard sin decode en la API. Fuente del tablero principal.';
 
 
 /* -----------------------------------------------------------------------------
@@ -853,6 +857,36 @@ COMMENT ON TABLE report_work.vw_ret_export_published IS
     'Base para exportaciones operativas del Dashboard desde la corrida publicada del ciclo vigente. Corrige el gap de vw_retention_export_base (que no filtra is_published=1). Incluye señales de atención de integración para exportaciones completas a equipos de campaña.';
 
 
+/* -----------------------------------------------------------------------------
+   B.15  CATÁLOGO DE ETIQUETAS DE RETENCIÓN (DECODE DE SEGMENTOS)
+   -----------------------------------------------------------------------------
+   Propósito    : Fuente oficial del decode de assigned_label_code para el
+                  Dashboard y la API. Permite al frontend y a la API resolver
+                  el nombre de negocio y descripción de cada segmento sin
+                  mantener una copia local del catálogo.
+                  Garantiza un único punto de mantenimiento: cualquier cambio
+                  en nombre, descripción u orden de un segmento se aplica aquí
+                  y se propaga automáticamente a todos los consumidores.
+
+   Endpoint API : GET /api/retention/labels
+   Filtros API  : Ninguno (catálogo completo). La API puede cachear esta
+                  respuesta al arranque o refrescarla por ciclo.
+   Roles        : Todos los roles del Dashboard (lectura pública del catálogo)
+
+   Tablas base  : rw_cat_ret_label
+   ----------------------------------------------------------------------------- */
+CREATE OR REPLACE VIEW report_work.vw_ret_label_catalog AS
+SELECT
+    label_code,
+    label_name,
+    label_short_desc,
+    display_order
+FROM report_work.rw_cat_ret_label;
+
+COMMENT ON TABLE report_work.vw_ret_label_catalog IS
+    'Catálogo de etiquetas de retención. Decode oficial de assigned_label_code hacia nombre de negocio y descripción. Unico punto de mantenimiento para nomenclatura de segmentos expuesta en el Dashboard y la API.';
+
+
 /* =============================================================================
    SECCIÓN C – ÍNDICES DE SOPORTE ADICIONALES
    =============================================================================
@@ -952,6 +986,7 @@ GRANT SELECT ON report_work.vw_ret_product_scores        TO rw_api_ro;
 GRANT SELECT ON report_work.vw_ret_quality_events        TO rw_api_ro;
 GRANT SELECT ON report_work.vw_ret_quality_samples       TO rw_api_ro;
 GRANT SELECT ON report_work.vw_ret_export_published      TO rw_api_ro;
+GRANT SELECT ON report_work.vw_ret_label_catalog         TO rw_api_ro;
 
 
 /* =============================================================================
@@ -1036,6 +1071,13 @@ GRANT SELECT ON report_work.vw_ret_export_published      TO rw_api_ro;
      Nota:     La auditoría de exportación se registra en APP_USER@UNOAPP
                (plano transaccional — contrato pendiente de definición)
 
+   CATÁLOGO (todos los roles)
+   ─────────────────────────────────────────────────────────────────────────────
+   GET /api/retention/labels                         vw_ret_label_catalog
+     Filtros:  Ninguno (catálogo completo)
+     Nota:     Decode oficial de assigned_label_code → label_name / label_short_desc.
+               La API puede cachear al arranque. Sin paginación requerida.
+
    NOTAS SOBRE ESCRITURAS
    ─────────────────────────────────────────────────────────────────────────────
    Las escrituras de parámetros (nuevas versiones, ajuste de valores) se
@@ -1069,6 +1111,7 @@ GRANT SELECT ON report_work.vw_ret_export_published      TO rw_api_ro;
    B12  vw_ret_quality_events              Nueva      Filtro en API     Eventos de calidad — panel de calidad
    B13  vw_ret_quality_samples             Nueva      N/A               Muestras de eventos — debug de calidad
    B14  vw_ret_export_published            Nueva      SÍ                Exportaciones operativas del Dashboard
+   B15  vw_ret_label_catalog               Nueva      N/A               Catálogo decode de segmentos (label_name)
    ============================================================================= */
 
 /* — Fin del documento de contratos de lectura —
