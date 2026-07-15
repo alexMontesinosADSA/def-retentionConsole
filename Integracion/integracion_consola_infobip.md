@@ -43,7 +43,19 @@ Regla arquitectónica que gobierna todo el diseño (heredada de `arq_mvp_retenci
 
 > **UNOREP decide y publica. La BD transaccional de aplicación registra la operación humana.** Ningún componente downstream reinterpreta lógica upstream; el micro frontend no consulta fuentes origen ni tablas internas del motor.
 
-Aplicado a esta integración: la Consola **no recalcula** score, etiqueta ni nivel de riesgo — los consume tal cual del resultado oficial vigente publicado en Serving (UNOREP). Las entidades de audiencia y sincronización (sección 7) viven en la **BD transaccional de aplicación** (Oracle, ambientes DEV/QA/PROD), no en UNOREP.
+Aplicado a esta integración: la Consola **no recalcula** score, etiqueta ni nivel de riesgo — los consume tal cual del resultado oficial vigente publicado en Serving (UNOREP). La preparación de audiencias **no toma el contacto final desde el snapshot publicado del ciclo**; resuelve celular y email vigentes desde un read model en `APP_USER@UNOAPP`. Las entidades de audiencia y sincronización (sección 7) viven en la **BD transaccional de aplicación** (Oracle, ambientes DEV/QA/PROD), no en UNOREP.
+
+### 2.2 Decisión de fuente de contacto operativo
+
+Se adopta como decisión de diseño la creación de un **read model de contacto resuelto en `APP_USER@UNOAPP`** para todos los casos de uso de preparación de audiencias y activación con Infobip.
+
+Reglas de resolución:
+
+- **Nivel 1:** contacto vigente desde Pinbox (`mob_user@UNOAPP`), por ser la fuente operativa más confiable y actualizada.
+- **Nivel 2:** contacto desde IAM, usado como respaldo cuando Pinbox no tenga dato válido.
+- El resultado oficial del ciclo (label, risk, action, universo) sigue viniendo exclusivamente de UNOREP.
+- La API .NET compone ambos planos: **decisión desde UNOREP + contacto resuelto desde UNOAPP**.
+- Una vez confirmada la audiencia, el contacto resuelto se **congela** en `RETENTION_AUDIENCE_CONTACT` para trazabilidad, idempotencia y reintentos.
 
 ### 2.1 Decisión de alcance confirmada para esta especificación
 
@@ -86,7 +98,8 @@ Este es el punto de diseño más crítico de toda la integración.
 ### 4.1 Flujo de resolución de identidad
 
 ```
-Resultado de retención por advertiser_id (N registros)
+Resultado de retención por advertiser_id desde UNOREP (N registros)
+  + contacto operativo vigente resuelto en APP_USER@UNOAPP
    → Validación de elegibilidad y contactabilidad
    → Normalización de celular / email
    → Agrupación por celular normalizado
@@ -236,6 +249,7 @@ Estados de `sync_status`: `DRAFT` → `READY_TO_SYNC` → `SYNC_IN_PROGRESS` →
 |---|---|
 | `audience_contact_id`, `audience_id`, `cycle_id` | Identificación |
 | `normalized_mobile`, `normalized_email` | Contacto normalizado |
+| `contact_source_level`, `contact_source_system`, `contact_resolved_at` | Trazabilidad del read model de contacto resuelto |
 | `infobip_external_id` | Igual a `normalized_mobile` en el diseño actual |
 | `primary_advertiser_id`, `advertiser_ids`, `advertiser_count`, `multi_advertiser_flag` | Trazabilidad de agrupación (§4.2) |
 | `source_labels`, `selected_label`, `selected_risk_level`, `selected_action`, `selection_reason` | Resolución operativa |
@@ -294,6 +308,8 @@ Nota: `SIN_CELULAR` o `SIN_EMAIL` deben tratarse como exclusión **parcial de ca
 ---
 
 ## 9. Normalización de contacto
+
+La fuente operativa para preparar audiencias no es el snapshot del ciclo publicado en UNOREP. La API toma el universo y la clasificación desde UNOREP, pero resuelve el celular y el email vigentes desde el read model de contacto resuelto en `APP_USER@UNOAPP`, con precedencia **Pinbox → IAM**.
 
 ### 9.1 Celular
 
@@ -371,19 +387,20 @@ Modelo de doble capa (heredado de la arquitectura general): autorización funcio
 3. Aplica filtros (etiqueta, riesgo, región, producto, responsable).
 4. Selecciona "Preparar audiencia".
 5. La API consulta el resultado oficial vigente en UNOREP.
-6. La API aplica reglas de elegibilidad (§8) y normaliza contactos (§9).
-7. La API agrupa por celular normalizado y resuelve etiqueta/riesgo operativos (§4.2).
-8. La API calcula el resumen preliminar (**modo dry-run**, no toca Infobip todavía):
-   - advertisers origen, contactos únicos, contactos válidos por canal, excluidos por motivo, tag propuesto, volumen estimado de lotes.
-9. La consola muestra el resumen; el usuario confirma.
-10. La API crea el registro local de audiencia (`RETENTION_AUDIENCE`) y sus contactos (`RETENTION_AUDIENCE_CONTACT`).
-11. La API crea o valida el tag en Infobip.
-12. La API particiona en lotes de máximo 1000 (§7.3) y ejecuta *batch partial people upsert* con `overwrite=true` en atributos tipo lista.
-13. La API asigna el tag a los perfiles sincronizados.
-14. La API registra resultado por lote y por contacto (especialmente fallidos).
-15. La API actualiza el estado general de la audiencia.
-16. La consola muestra el resultado final (sincronizados / omitidos / fallidos / tag generado / fecha).
-17. Mercadotecnia entra a Infobip y usa el tag para construir las campañas de Email y WhatsApp con las plantillas correspondientes a la etiqueta (§5.3).
+6. La API consulta en `APP_USER@UNOAPP` el read model de contacto resuelto para esos `advertiser_id`.
+7. La API aplica reglas de elegibilidad (§8) y normaliza contactos (§9).
+8. La API agrupa por celular normalizado y resuelve etiqueta/riesgo operativos (§4.2).
+9. La API calcula el resumen preliminar (**modo dry-run**, no toca Infobip todavía):
+  - advertisers origen, contactos únicos, contactos válidos por canal, excluidos por motivo, tag propuesto, volumen estimado de lotes.
+10. La consola muestra el resumen; el usuario confirma.
+11. La API crea el registro local de audiencia (`RETENTION_AUDIENCE`) y sus contactos (`RETENTION_AUDIENCE_CONTACT`), congelando el contacto resuelto usado para esa preparación.
+12. La API crea o valida el tag en Infobip.
+13. La API particiona en lotes de máximo 1000 (§7.3) y ejecuta *batch partial people upsert* con `overwrite=true` en atributos tipo lista.
+14. La API asigna el tag a los perfiles sincronizados.
+15. La API registra resultado por lote y por contacto (especialmente fallidos).
+16. La API actualiza el estado general de la audiencia.
+17. La consola muestra el resultado final (sincronizados / omitidos / fallidos / tag generado / fecha).
+18. Mercadotecnia entra a Infobip y usa el tag para construir las campañas de Email y WhatsApp con las plantillas correspondientes a la etiqueta (§5.3).
 
 ### 13.1 Fase de reconciliación previa a producción (recomendada antes de sincronizar en real)
 

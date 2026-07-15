@@ -17,9 +17,10 @@
    Plano origen     : report_work@UNOREP (Oracle 11g — Analítico-Decisional)
    Consumidor       : API .NET – Módulo de Retención
    Usuario técnico  : rw_api_ro (solo lectura sobre vistas de Serving)
-   Plano transacc.  : APP_USER@UNOAPP — NO existe aún. Se define en contrato
-                      separado. Las escrituras operativas (bitácora, marcados,
-                      auditoría de exportaciones) quedan fuera de este documento.
+  Plano transacc.  : APP_USER@UNOAPP — complementado por contrato separado
+               para read models operativos. Las escrituras operativas
+               (bitácora, marcados, auditoría de exportaciones) y la
+               resolución de contacto vigente quedan fuera de este documento.
 
    ESTRUCTURA DEL DOCUMENTO
    ------------------------
@@ -797,11 +798,14 @@ COMMENT ON TABLE report_work.vw_ret_quality_samples IS
                   El ciclo ya está delimitado por is_published=1 en la vista.
    Roles        : Analista de Retención, PO / Mercadotecnia
 
-   Nota         : Incluye señales de atención de la capa de integración
+  Nota         : Incluye señales de atención de la capa de integración
                   (flg_meets_cq, flg_meets_ta, flg_meets_cs) para exportaciones
                   completas destinadas a equipos de campaña y seguimiento.
                   La auditoría de la exportación se registra en APP_USER@UNOAPP
-                  (plano transaccional — contrato pendiente de definición).
+            (plano transaccional — contrato separado). La resolución de
+            contacto vigente para preparación de audiencias con Infobip
+            no sale de esta vista; se obtiene desde el read model de
+            contacto resuelto en APP_USER@UNOAPP.
 
    Tablas base  : rw_run_result, rw_run, rw_cycle, rw_int_advertiser
    ----------------------------------------------------------------------------- */

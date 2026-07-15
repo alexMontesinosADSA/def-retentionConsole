@@ -1426,10 +1426,10 @@ Expone vistas y tablas finales que consumen los componentes del sistema de reten
 
 | # | Fuente | Datos extraídos | Mecanismo | Frecuencia |
 |---|---|---|---|---|
-| 1 | IAM | Clientes (advertisers), productos y estatus, cases, etiquetas, valor contrato, datos de contacto, agente/supervisor, división, campaña, categoría, población, vigencia, fecha última contratación | Consulta a BD de IAM (lectura directa o réplica) | Diaria (incremental) + mensual (completa) |
+| 1 | IAM | Clientes (advertisers), productos y estatus, cases, etiquetas, valor contrato, datos de contacto analíticos y respaldo de contacto operativo, agente/supervisor, división, campaña, categoría, población, vigencia, fecha última contratación | Consulta a BD de IAM (lectura directa o réplica) | Diaria (incremental) + mensual (completa) |
 | 2 | SAP_USER@UNOREP | Tabla de rezago por cliente | Consulta a esquema SAP | Diaria |
 | 3 | Panel Marketing | Visitas por sitio, antigüedad de publicación del sitio | API o extracción programada | Mensual (al cierre de mes) |
-| 4 | Pinbox | Retroalimentación de FDV en "campaña en oportunidades" | Consulta a BD de Pinbox o API | Diaria |
+| 4 | Pinbox | Retroalimentación de FDV en "campaña en oportunidades" y datos de contacto operativos de mayor confiabilidad para activación | Consulta a BD de Pinbox o API | Diaria |
 | 5 | Catálogo de productos (scores) | Product_code, score | Importación desde panel HU1.7 | Bajo demanda (cuando Mercadotecnia actualice) |
 | 6 | Catálogo de tipos de case | catalogo cases init source ctes ult 12m | Importación desde archivo de referencia | Bajo demanda |
 
@@ -1463,6 +1463,8 @@ El modelo se organiza alrededor de la entidad Cliente (advertiser) con las sigui
 | delinquent_status | Código | IAM | Informativo — no se usa para SP |
 | tiene_rezago | Booleano | SAP_USER@UNOREP | Fuente oficial para SP |
 | etiqueta_queja_manual | Fecha activación | IAM | Usado en CQ — vigencia 3 meses |
+
+Nota operativa de arquitectura: para casos de uso de activación y preparación de audiencias, el sistema no usa directamente estos campos analíticos como fuente final de contacto. La API consume un read model de contacto resuelto en APP_USER@UNOAPP con prioridad `Pinbox (nivel 1) → IAM (nivel 2)`.
 
 ---
 
@@ -1540,6 +1542,7 @@ El `advertiser_id` es la clave de unión entre todas las fuentes. Todo registro 
 
 **2. Validación de campos de contacto**
 Phone, cell_phone y email se marcan como válidos/inválidos al momento de la ingesta según reglas de formato definidas en HU2.2. El valor original se conserva; solo se añade el flag de validez.
+Esta validación pertenece al plano analítico y no sustituye la resolución de contacto operativo vigente usada por la integración con audiencias.
 
 **3. Productos con monto**
 Se genera un flag `tiene_monto = true` por producto cuando el campo `monto > 0`. Este flag es relevante para los filtros del modelo de segmentación.
@@ -2177,6 +2180,7 @@ Tabla con los últimos 3 a 6 ciclos: fecha, etiqueta, nivel de riesgo y score. P
 - **Datos de segmentación:** actualizados mensualmente al cierre del ciclo (día 04 del mes a las 09:00 hrs)
 - **Datos de contacto (bitácora):** actualizados en tiempo casi real cuando HU3.3 esté operativa
 - **Datos de clientes (contacto, productos):** actualizados diariamente según periodicidad de HU2.1
+- **Datos de contacto para activación/audiencias:** resueltos al momento de preparación desde APP_USER@UNOAPP usando el read model operativo vigente
 
 El tablero muestra claramente la fecha y hora de última actualización por cada tipo de dato para que el usuario entienda la frescura de lo que consulta.
 
