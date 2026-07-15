@@ -197,7 +197,7 @@ Cada ciclo de cálculo debe quedar ligado a:
 |---|---|---|
 | Datos y decisión | Oracle 11g (`report_work@unorep`) | Ingesta, motor, serving, calidad, parámetros e histórico |
 | Aplicación | API .NET + micro frontend | Tablero, bitácora, exportaciones y seguridad funcional |
-| Transaccional-operativo | Oracle de aplicación (DEV/QA/PROD) | Bitácora, marcados y auditoría de exportaciones |
+| Transaccional-operativo | Oracle de aplicación (DEV/QA/PROD) | Bitácora, marcados, auditoría de exportaciones y read models operativos |
 | Integración externa | ETL Python / conectores futuros | Panel Marketing hoy |
 
 ## Componentes de la solución
@@ -290,6 +290,7 @@ Backend ligero y orientado a casos de uso.
 - Expone endpoints de tablero, detalle, trazabilidad y parámetros.
 - Consulta UNOREP para datos analíticos.
 - Lee y escribe en la BD transaccional de la aplicación.
+- Para activación y preparación de audiencias, resuelve el contacto operativo vigente desde un read model en APP_USER@UNOAPP.
 - Compone la respuesta final al frontend.
 - Registra auditoría operativa donde aplica.
 
@@ -322,9 +323,10 @@ Oracle de la aplicación, con ambientes DEV/QA/PROD. Exclusiva para operación h
 - Bitácora de gestión manual con comentarios y seguimiento.
 - Marcados operativos ligeros por cliente.
 - Auditoría de exportaciones.
+- Read model de contacto resuelto para casos de uso operativos de activación y audiencias.
 - Metadatos operativos de la aplicación.
 
-**Regla:** No es fuente de verdad del motor. Complementa el plano analítico con la operación humana. UNOREP decide; esta BD registra.
+**Regla:** No es fuente de verdad del motor. Complementa el plano analítico con la operación humana y con datos operativos vigentes cuando el caso de uso lo requiere. UNOREP decide; esta BD registra y resuelve contacto operativo.
 
 ## Roles y responsabilidades por componente
 
@@ -417,7 +419,7 @@ Objetivo: permitir consulta y operación diaria desde el módulo de Retención.
 2. Se habilita el micro frontend según roles.
 3. El frontend invoca la API del módulo.
 4. La API consulta UNOREP para datasets analíticos.
-5. La API consulta la BD transaccional para bitácora y marcados.
+5. La API consulta la BD transaccional para bitácora, marcados y, cuando aplica, read models operativos como contacto resuelto.
 6. La API compone la respuesta y el usuario visualiza lista priorizada, detalle y trazabilidad.
 
 **Salida:** Vista operativa o ejecutiva según rol.

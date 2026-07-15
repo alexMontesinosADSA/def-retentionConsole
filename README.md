@@ -31,6 +31,7 @@ El motor de retención vive en `report_work@UNOREP` (Oracle 11g). Este component
 │
 ├── contratos/                       Contratos de datos entre capas
 │   ├── lectura_unorep/              Vistas que la API consume desde UNOREP
+│   ├── lectura_unoapp/              Read models y contratos de lectura en APP_USER@UNOAPP
 │   └── escritura_unoapp/            Modelo transaccional de APP_USER@UNOAPP
 │
 ├── api/                             Especificación de la API .NET
@@ -53,7 +54,8 @@ El motor de retención vive en `report_work@UNOREP` (Oracle 11g). Este component
 |---|---|
 | Arquitectura general del sistema |  Definida (`arq_mvp_retencion_consolidada_v1`) |
 | Contratos de lectura desde UNOREP |  v1.0 definidos |
-| Modelo transaccional APP_USER@UNOAPP |  Pendiente |
+| Contrato de lectura de contacto resuelto en APP_USER@UNOAPP |  v1.0 definido |
+| Modelo transaccional APP_USER@UNOAPP |  Parcialmente definido |
 | Especificación API .NET |  Pendiente |
 | Especificación micro frontend |  Pendiente |
 
@@ -73,6 +75,7 @@ Este repo documenta solo el componente Dashboard / API. Los documentos del siste
 ## Convenciones
 
 - Los archivos SQL de contratos son ejecutables en Oracle 11g sobre `report_work@UNOREP`
+- Los contratos lógicos aún no aterrizados a DDL físico pueden documentarse en Markdown
 - Las vistas de Serving nuevas siguen la convención `vw_ret_<propósito>`
 - Los ADRs se numeran secuencialmente: `ADR-001`, `ADR-002`, ...
 - Versiones de documentos: `_v1`, `_v2`, ... sobre el nombre del archivo
