@@ -88,10 +88,11 @@ Cada ciclo de cálculo debe quedar ligado a:
 - Re-cálculo de ciclos sin sobrescribir resultados históricos.
 - Trazabilidad completa por ciclo.
 - Visualización de calidad de datos y riesgo indeterminado.
+- Preparación de audiencias desde la consola para envio de campañas en infobip.
 
 ### Fuera de alcance
 
-- Disparo automático de campañas e integración activa con Infobip.
+- Disparo automático de campañas con Infobip.
 - NPS y win-back automatizado.
 - Modelo ML predictivo.
 - Near real-time o tiempo real.
@@ -206,7 +207,7 @@ Cada ciclo de cálculo debe quedar ligado a:
 
 | Fuente | Detalle |
 |---|---|
-| IAM (`rep_*@unorep`) | DB links a esquemas réplica. Clientes, productos, estatus, cases, etiquetas, valor contrato, datos comerciales y de contacto. |
+| IAM (`report_work@unorep`) | DB links a esquemas réplica. Clientes, productos, estatus, cases, etiquetas, valor contrato, datos comerciales y de contacto. |
 | `SAP_USER@UNOREP` | Mismo motor Oracle, distinto esquema. Rezago y morosidad. |
 | Pinbox (`mob_user@UNOAPP`) | Oracle remoto con accesos gestionados por DBS. Retroalimentación FDV y campaña en oportunidades. |
 | Panel Marketing (SQL Server) | Sin DB link ni API. Extracción vía ETL Python. Visitas por sitio, antigüedad y publicación del sitio. |
@@ -343,11 +344,11 @@ Oracle de la aplicación, con ambientes DEV/QA/PROD. Exclusiva para operación h
 
 ## Flujos end-to-end
 
-### Flujo 1 — Ingesta diaria
+### Flujo 1 — Ingesta diaria ( AUN NO IMPLEMENTADO EN EL MODELO ACTUAL)
 
 Objetivo: actualizar el plano analítico con cambios recientes de fuentes operativas.
 
-1. DBMS_SCHEDULER lanza extracción diaria desde IAM (`rep_*@unorep`).
+1. DBMS_SCHEDULER lanza extracción diaria desde IAM (`report_work@unorep`).
 2. Se extraen datos de `SAP_USER@UNOREP`.
 3. Se extraen datos de Pinbox (`mob_user@UNOAPP`).
 4. Los datos aterrizan en Landing con fecha y hora de carga.
